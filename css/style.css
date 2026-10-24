@@ -138,12 +138,13 @@ code, pre, .mono {
 @media (max-width: 900px) { .pmain { grid-template-columns: 1fr; } }
 
 .panel { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-.panel-tabs { display: flex; border-bottom: 1px solid var(--border); }
-.panel-tabs button {
+.panel-tabs, .work-tabs { display: flex; border-bottom: 1px solid var(--border); }
+:is(.panel-tabs, .work-tabs) button {
   border: none; background: none; padding: 10px 18px; cursor: pointer;
   font-size: 13px; color: var(--text-2); border-bottom: 2px solid transparent;
 }
-.panel-tabs button.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+:is(.panel-tabs, .work-tabs) button.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+.work-tabs[hidden] { display: none; }
 .panel-body { padding: 16px 18px; max-height: calc(100vh - 165px); overflow-y: auto; }
 
 .desc h3 { margin: 14px 0 6px; font-size: 14px; }
@@ -171,15 +172,20 @@ code, pre, .mono {
 
 /* ---------- 编辑区 ---------- */
 .work { display: flex; flex-direction: column; gap: 12px; }
+.work-panels { min-width: 0; }
+.work > .actions { flex-wrap: wrap; }
+.work > .actions .run-status { overflow-wrap: anywhere; }
 .editor-wrap {
   background: var(--card); border: 1px solid var(--border); border-radius: 10px;
   overflow: hidden;
 }
 .editor-toolbar {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 8px 12px; border-bottom: 1px solid var(--border);
 }
 .editor-toolbar .hint { color: var(--text-2); font-size: 12px; flex: 1; }
+.editor-font-controls { display: flex; align-items: center; gap: 4px; }
+.editor-font-controls .btn { padding: 4px 8px; white-space: nowrap; }
 #editor-host, .editor-host { height: clamp(420px, 52vh, 720px); }
 .editor-fallback { width: 100%; height: 100%; border: none; outline: none; padding: 12px; resize: none; font-family: Menlo, Consolas, monospace; font-size: 13px; }
 
@@ -593,7 +599,7 @@ kbd {
 .mobile-work-tabs { display: none; }
 .code-pane, .result-pane { min-width: 0; }
 .code-pane { display: flex; flex-direction: column; gap: 12px; }
-.problem-pane[hidden], .code-pane[hidden], .result-pane[hidden] { display: none !important; }
+.problem-pane[hidden], .code-pane[hidden], .result-pane[hidden], .work[hidden] { display: none !important; }
 .result-empty {
   padding: 28px 18px; border: 1px dashed var(--border); border-radius: 10px;
   background: var(--card); color: var(--text-2); text-align: center;
@@ -654,18 +660,35 @@ kbd {
 .pgroup-body > .plist-row + .custom-test { border-top-left-radius: 0; border-top-right-radius: 0; }
 .custom-test form label { display: block; margin-top: 8px; color: var(--text-2); }
 
-@media (min-width: 1200px) {
-  .pmain { grid-template-columns: minmax(420px, 0.9fr) minmax(600px, 1.35fr); }
-  .results-body { max-height: min(46vh, 520px); }
-}
-
-/* 超宽桌面（≥1600px）：题目 | 代码 | 结果 三栏同屏。
-   .work 拆解为网格子项（display: contents），结果区 max-height 随视口放宽。
-   仅影响 ≥1600px：901–1599px 维持上方两栏布局，≤900px 移动布局不受影响。 */
-@media (min-width: 1600px) {
-  .pmain { grid-template-columns: minmax(380px, 0.95fr) minmax(520px, 1.2fr) minmax(360px, 0.95fr); }
-  .work { display: contents; }
-  .results-body { max-height: calc(100vh - 260px); }
+@media (min-width: 901px) {
+  #app.app-wide {
+    display: flex; flex-direction: column; height: 100vh; height: 100dvh;
+    min-height: 660px; padding-bottom: 16px;
+  }
+  #app.app-wide > :not(.pmain) { flex-shrink: 0; }
+  .pmain {
+    flex: 1; min-height: 360px; align-items: stretch;
+    grid-template-columns: minmax(280px, 7fr) minmax(0, 13fr);
+  }
+  .problem-pane { display: flex; flex-direction: column; min-height: 0; }
+  .problem-pane > .panel-tabs { flex-shrink: 0; }
+  .problem-pane > .panel-body { flex: 1; min-height: 0; max-height: none; }
+  .work {
+    min-width: 0; min-height: 0; gap: 0; overflow: hidden;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .work-tabs { flex-shrink: 0; }
+  .work-panels { display: flex; flex: 1; min-height: 0; }
+  .work-panels > :is(.code-pane, .result-pane) { flex: 1; min-height: 0; }
+  .code-pane > .editor-wrap {
+    display: flex; flex-direction: column; flex: 1; min-height: 0; border: 0; border-radius: 0;
+  }
+  .editor-toolbar { flex-shrink: 0; }
+  #editor-host { flex: 1; min-height: 0; height: auto !important; }
+  .editor-resize { display: none; }
+  .work > .actions { flex-shrink: 0; padding: 10px 12px; border-top: 1px solid var(--border); }
+  .work .result-pane { overflow-y: auto; padding: 12px; }
+  .work .results-body { max-height: none; overflow: visible; }
 }
 
 @media (max-width: 900px) {
@@ -697,7 +720,7 @@ kbd {
   .mobile-work-tabs button:last-child { border-right: 0; }
   .mobile-work-tabs button.active { background: var(--primary); color: #fff; }
   .pmain { display: block; }
-  .work { display: contents; }
+  .work { display: flex; }
   .problem-pane, .code-pane, .result-pane { width: 100%; }
   .result-pane { padding-bottom: calc(72px + env(safe-area-inset-bottom)); scroll-padding-bottom: 72px; }
   .panel-body { max-height: none; }

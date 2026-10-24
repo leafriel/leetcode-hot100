@@ -3,7 +3,7 @@
 // - setError/clearError：判题报错时在指定行标红并跳转
 // - retry/upgrade：加载失败后可重试，并将降级编辑区中的内容无损升级到 Monaco
 
-import { getThemePref } from './store.js';
+import { getThemePref, getEditorFontSize, MIN_EDITOR_FONT_SIZE, MAX_EDITOR_FONT_SIZE } from './store.js';
 
 const MONACO_CDN = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs';
 // 本地自托管的 Monaco（vendor/monaco/vs），离线可用；缺失或加载失败时回退 CDN。
@@ -160,11 +160,12 @@ function loadMonaco() {
   return attempt;
 }
 
-// 返回统一接口 { getValue, setValue, setLanguage, setError, clearError, layout, retry, upgrade, dispose }
+// 返回统一接口 { getValue, setValue, setLanguage, setFontSize, setError, clearError, layout, retry, upgrade, dispose }
 // setError(line, message)：在某行标红（line 为空则仅清除）；无行号时也可只显示提示
 // lazy: true 时不自动加载 Monaco，由调用方在首次聚焦或进入视口时再调 upgrade() 升级
 export async function createEditor(container, { language, value, onChange, lazy = false }) {
   let currentLanguage = language;
+  let currentFontSize = getEditorFontSize();
   let currentValue = String(value ?? '');
   let currentError = null;
   let disposed = false;
@@ -175,6 +176,7 @@ export async function createEditor(container, { language, value, onChange, lazy 
   textarea.className = 'editor-fallback';
   textarea.value = currentValue;
   textarea.spellcheck = false;
+  textarea.style.fontSize = `${currentFontSize}px`;
 
   const retryButton = document.createElement('button');
   retryButton.type = 'button';
@@ -274,7 +276,7 @@ export async function createEditor(container, { language, value, onChange, lazy 
           model,
           theme: getThemePref() === 'dark' ? 'vs-dark' : 'vs',
           minimap: { enabled: false },
-          fontSize: 13,
+          fontSize: currentFontSize,
           automaticLayout: true,
           scrollBeyondLastLine: false,
           tabSize: 4,
@@ -328,6 +330,12 @@ export async function createEditor(container, { language, value, onChange, lazy 
     setLanguage: (nextLanguage) => {
       currentLanguage = nextLanguage;
       if (backend) backend.monaco.editor.setModelLanguage(backend.model, currentLanguage);
+    },
+    setFontSize: (size) => {
+      if (disposed || !Number.isInteger(size) || size < MIN_EDITOR_FONT_SIZE || size > MAX_EDITOR_FONT_SIZE) return;
+      currentFontSize = size;
+      textarea.style.fontSize = `${size}px`;
+      if (backend) backend.editor.updateOptions({ fontSize: size });
     },
     setError: (line, message) => {
       currentError = line ? { line, message } : null;

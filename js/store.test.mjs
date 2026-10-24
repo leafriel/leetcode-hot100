@@ -62,6 +62,50 @@ test('列表视图、折叠分组和编辑器高度安全持久化', () => {
   assert.deepEqual(JSON.parse(localStorage.getItem('hot100_collapsed_groups_v1')), ['数组', '链表']);
 });
 
+test('代码字号持久化、边界与存储失败', () => {
+  reset();
+  assert.equal(store.getEditorFontSize(), 13);
+  for (const size of [10, 18, 32]) {
+    assert.deepEqual(store.setEditorFontSize(size), { ok: true });
+    assert.equal(store.getEditorFontSize(), size);
+  }
+  for (const size of [9, 33, 13.5, NaN, Infinity, '18', null]) {
+    assert.equal(store.setEditorFontSize(size).ok, false);
+    assert.equal(store.getEditorFontSize(), 32);
+  }
+  for (const raw of ['', 'bad', '9', '33', '13.5']) {
+    reset({ hot100_editor_font_size_v1: raw });
+    assert.equal(store.getEditorFontSize(), 13);
+  }
+  reset();
+  localStorage.failOnceFor = 'hot100_editor_font_size_v1';
+  assert.equal(store.setEditorFontSize(18).ok, false);
+  assert.equal(store.getEditorFontSize(), 13);
+});
+
+test('代码字号随备份恢复，旧备份兼容且无效字号不会写入', () => {
+  reset();
+  store.setEditorFontSize(18);
+  const payload = store.exportAll();
+  assert.equal(payload.data.preferences.editorFontSize, 18);
+  for (const mode of ['merge', 'replace']) {
+    reset();
+    assert.equal(store.importAll(payload, { mode }).ok, true);
+    assert.equal(store.getEditorFontSize(), 18);
+  }
+  for (const size of [9, 33, 13.5, '18', null]) {
+    const corrupt = structuredClone(payload);
+    corrupt.data.preferences.editorFontSize = size;
+    assert.throws(() => store.importAll(corrupt), /代码字号格式/);
+    assert.equal(store.getEditorFontSize(), 18);
+  }
+  delete payload.data.preferences.editorFontSize;
+  assert.equal(store.importAll(payload, { mode: 'merge' }).ok, true);
+  assert.equal(store.getEditorFontSize(), 18);
+  assert.equal(store.importAll(payload, { mode: 'replace' }).ok, true);
+  assert.equal(store.getEditorFontSize(), 13);
+});
+
 test('AI 助手配置安全持久化，损坏值回退默认', () => {
   reset();
   assert.deepEqual(store.getAssistantConfig(), { preset: 'moonshot', baseUrl: '', apiKey: '', model: '', pinned: false });
@@ -231,7 +275,7 @@ test('version 2 导出采用严格 schema，并支持偏好 merge/replace', () =
   assert.deepEqual(Object.keys(payload.data).sort(), ['customInputs', 'drafts', 'learning', 'mistakes', 'preferences', 'progress']);
   assert.deepEqual(payload.data.preferences, {
     lang: 'python', theme: 'light', listView: 'tags',
-    collapsedGroups: ['数组', '链表'], editorHeight: 720,
+    collapsedGroups: ['数组', '链表'], editorHeight: 720, editorFontSize: 13,
     listFilters: { q: '', diff: '', tag: '', status: '' }, onboardingDismissed: false,
   });
   assert.equal(payload.version, 2);

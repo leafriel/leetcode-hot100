@@ -20,6 +20,7 @@ const THEME_KEY = 'hot100_theme_v1';
 const LIST_VIEW_KEY = 'hot100_list_view_v1';
 const COLLAPSED_GROUPS_KEY = 'hot100_collapsed_groups_v1';
 const EDITOR_HEIGHT_KEY = 'hot100_editor_height_v1';
+const EDITOR_FONT_SIZE_KEY = 'hot100_editor_font_size_v1';
 const CUSTOM_INPUTS_KEY = 'hot100_custom_v1';
 const LIST_FILTERS_KEY = 'hot100_list_filters_v1';
 const ONBOARDING_DISMISSED_KEY = 'hot100_onboarding_dismissed_v1';
@@ -31,6 +32,9 @@ const LIST_VIEWS = ['diff', 'flat', 'tags'];
 const DEFAULT_EDITOR_HEIGHT = 400;
 const MIN_EDITOR_HEIGHT = 200;
 const MAX_EDITOR_HEIGHT = 1200;
+export const DEFAULT_EDITOR_FONT_SIZE = 13;
+export const MIN_EDITOR_FONT_SIZE = 10;
+export const MAX_EDITOR_FONT_SIZE = 32;
 
 export const BACKUP_VERSION = 2;
 export const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
@@ -228,6 +232,23 @@ export function getEditorHeight() {
   return Number.isFinite(height) && height >= MIN_EDITOR_HEIGHT && height <= MAX_EDITOR_HEIGHT
     ? height
     : DEFAULT_EDITOR_HEIGHT;
+}
+
+function validEditorFontSize(size) {
+  return Number.isInteger(size) && size >= MIN_EDITOR_FONT_SIZE && size <= MAX_EDITOR_FONT_SIZE;
+}
+
+export function getEditorFontSize() {
+  const result = readRaw(EDITOR_FONT_SIZE_KEY);
+  const size = result.ok ? Number(result.value) : NaN;
+  return validEditorFontSize(size) ? size : DEFAULT_EDITOR_FONT_SIZE;
+}
+
+export function setEditorFontSize(size) {
+  if (!validEditorFontSize(size)) {
+    return invalidPreference(EDITOR_FONT_SIZE_KEY, `代码字号必须是 ${MIN_EDITOR_FONT_SIZE}-${MAX_EDITOR_FONT_SIZE} 之间的整数`);
+  }
+  return writeRaw(EDITOR_FONT_SIZE_KEY, String(size));
 }
 
 export function setEditorHeight(height) {
@@ -574,6 +595,7 @@ export function exportAll() {
         listView: getListView(),
         collapsedGroups: getCollapsedGroups(),
         editorHeight: getEditorHeight(),
+        editorFontSize: getEditorFontSize(),
         listFilters: getListFilters(),
         onboardingDismissed: getOnboardingDismissed(),
       },
@@ -612,7 +634,7 @@ function v2Changes(payload) {
     throw new Error('version 2 data schema 不正确');
   }
   const preferences = data.preferences;
-  const preferenceKeys = ['lang', 'theme', 'listView', 'collapsedGroups', 'editorHeight', 'listFilters', 'onboardingDismissed'];
+  const preferenceKeys = ['lang', 'theme', 'listView', 'collapsedGroups', 'editorHeight', 'editorFontSize', 'listFilters', 'onboardingDismissed'];
   if (!preferences || typeof preferences !== 'object' || Array.isArray(preferences)
     || !Object.hasOwn(preferences, 'lang') || !Object.hasOwn(preferences, 'theme')
     || Object.keys(preferences).some(key => !preferenceKeys.includes(key))
@@ -627,6 +649,9 @@ function v2Changes(payload) {
   if (preferences.editorHeight !== undefined
     && (!Number.isFinite(preferences.editorHeight) || preferences.editorHeight < MIN_EDITOR_HEIGHT || preferences.editorHeight > MAX_EDITOR_HEIGHT)) {
     throw new Error('编辑器高度格式不正确');
+  }
+  if (preferences.editorFontSize !== undefined && !validEditorFontSize(preferences.editorFontSize)) {
+    throw new Error('代码字号格式不正确');
   }
   if (preferences.listFilters !== undefined) {
     const filters = preferences.listFilters;
@@ -650,6 +675,7 @@ function v2Changes(payload) {
   if (preferences.listView !== undefined) changes.push([LIST_VIEW_KEY, preferences.listView]);
   if (preferences.collapsedGroups !== undefined) changes.push([COLLAPSED_GROUPS_KEY, serialize([...new Set(preferences.collapsedGroups)])]);
   if (preferences.editorHeight !== undefined) changes.push([EDITOR_HEIGHT_KEY, String(preferences.editorHeight)]);
+  if (preferences.editorFontSize !== undefined) changes.push([EDITOR_FONT_SIZE_KEY, String(preferences.editorFontSize)]);
   if (preferences.listFilters !== undefined) changes.push([LIST_FILTERS_KEY, serialize(normalizeListFilters(preferences.listFilters))]);
   if (preferences.onboardingDismissed !== undefined) changes.push([ONBOARDING_DISMISSED_KEY, preferences.onboardingDismissed ? 'true' : 'false']);
   for (const [id, code] of Object.entries(data.drafts)) {

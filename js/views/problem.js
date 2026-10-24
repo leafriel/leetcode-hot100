@@ -21,6 +21,11 @@ import {
   setLangPref,
   getEditorHeight,
   setEditorHeight as saveEditorHeight,
+  getEditorFontSize,
+  setEditorFontSize as saveEditorFontSize,
+  DEFAULT_EDITOR_FONT_SIZE,
+  MIN_EDITOR_FONT_SIZE,
+  MAX_EDITOR_FONT_SIZE,
   updateMistakeDetails,
   getAssistState,
   setAssistState,
@@ -49,6 +54,7 @@ export function renderProblem(container, problem) {
     mode: 'core', // core | acm
     lang: getLangPref(), // javascript | python | cpp（跟随全局语言偏好，默认 Python）
     tab: 'desc', // desc | solution
+    workTab: 'code', // code | result
     mobileTab: 'problem', // problem | code | result
     revealed: savedAssist.revealed,
     hintLevel: savedAssist.hintLevel,
@@ -127,21 +133,27 @@ export function renderProblem(container, problem) {
         <div class="panel-body" id="panel-body" role="tabpanel" aria-labelledby="content-tab-desc" tabindex="0"></div>
       </section>
       <div class="work">
+        <div class="work-tabs" id="work-tabs" role="tablist" aria-label="代码与判题结果">
+          <button type="button" role="tab" id="work-tab-code" data-work-tab="code" aria-controls="code-pane">代码</button>
+          <button type="button" role="tab" id="work-tab-result" data-work-tab="result" aria-controls="result-pane">判题结果</button>
+        </div>
+        <div class="work-panels">
         <section class="code-pane" id="code-pane" role="tabpanel" aria-labelledby="mobile-tab-code">
           <div class="editor-wrap">
             <div class="editor-toolbar">
               <span class="hint" id="editor-hint"></span>
+              <div class="editor-font-controls" role="group" aria-label="代码字号" title="Ctrl + 鼠标滚轮调整代码字号">
+                <button type="button" class="btn" id="font-smaller" aria-label="缩小代码字体" title="缩小代码字体">A−</button>
+                <button type="button" class="btn" id="font-reset" aria-label="恢复默认代码字号" title="恢复默认字号（13px）"></button>
+                <button type="button" class="btn" id="font-larger" aria-label="放大代码字体" title="放大代码字体">A+</button>
+              </div>
               <button type="button" class="btn" id="reset-btn">重置代码</button>
             </div>
             <div class="editor-host" id="editor-host" aria-label="代码编辑器"></div>
             <div class="editor-resize" id="editor-resize" role="separator" tabindex="0" aria-label="调整编辑器高度" aria-orientation="horizontal" aria-valuemin="200" title="拖拽或用方向键调整编辑器高度"></div>
           </div>
-          <div class="actions">
-            <button type="button" class="btn primary" id="run-btn">▶ 执行并判题</button>
-            <button type="button" class="btn" id="mistake-btn"></button>
-            <span class="kbd-hint"><kbd>⌘/Ctrl</kbd>+<kbd>Enter</kbd> 判题 · <kbd>Alt</kbd>+<kbd>←/→</kbd> 上/下一题</span>
-            <span class="run-status" id="run-status" role="status" aria-live="polite"></span>
-          </div>
+        </section>
+        <section class="result-pane" id="result-pane" role="tabpanel" aria-labelledby="mobile-tab-result" tabindex="-1">
           <details class="custom-test" id="custom-test">
             <summary>自定义测试（只看运行结果，不计对错）</summary>
             <textarea id="custom-input" rows="3" spellcheck="false" aria-label="自定义测试输入"></textarea>
@@ -157,8 +169,6 @@ export function renderProblem(container, problem) {
             </div>
             <div class="custom-out" id="custom-out" role="status" aria-live="polite" tabindex="-1" hidden></div>
           </details>
-        </section>
-        <section class="result-pane" id="result-pane" role="tabpanel" aria-labelledby="mobile-tab-result" tabindex="-1">
           <div class="result-empty" id="result-empty" role="status">尚未运行代码。请切换到“代码”并执行判题。</div>
           <div class="results" id="results" aria-live="polite" hidden>
             <div class="results-head" id="results-head"></div>
@@ -166,6 +176,13 @@ export function renderProblem(container, problem) {
           </div>
           <div class="pnav" id="pnav"></div>
         </section>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn primary" id="run-btn">▶ 执行并判题</button>
+          <button type="button" class="btn" id="mistake-btn"></button>
+          <span class="kbd-hint"><kbd>⌘/Ctrl</kbd>+<kbd>Enter</kbd> 判题 · <kbd>Alt</kbd>+<kbd>←/→</kbd> 上/下一题</span>
+          <span class="run-status" id="run-status" role="status" aria-live="polite"></span>
+        </div>
       </div>
     </div>
   `;
@@ -722,10 +739,8 @@ export function renderProblem(container, problem) {
   function focusResults() {
     showMobileTab('result');
     const pane = $('#result-pane');
-    const rect = pane.getBoundingClientRect();
-    const visible = rect.top >= 0 && rect.bottom <= window.innerHeight && rect.left >= 0 && rect.right <= window.innerWidth;
     pane.focus({ preventScroll: true });
-    if (!visible) resultsEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    resultsHead.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   function renderVerdict(verdict, runLang, assisted) {
@@ -870,22 +885,33 @@ export function renderProblem(container, problem) {
 
   function showMobileTab(tab, { focus = false } = {}) {
     state.mobileTab = tab;
+    if (tab !== 'problem') state.workTab = tab;
     const mobile = mobileMedia.matches;
     $('#mobile-work-tabs').hidden = !mobile;
+    $('#work-tabs').hidden = mobile;
+    $('.work').hidden = mobile && tab === 'problem';
     container.querySelectorAll('[data-mobile-tab]').forEach((button) => {
       const selected = button.dataset.mobileTab === tab;
       button.setAttribute('aria-selected', String(selected));
       button.tabIndex = selected ? 0 : -1;
       button.classList.toggle('active', selected);
-      if (focus && selected) button.focus();
+      if (focus && selected && mobile) button.focus();
+    });
+    container.querySelectorAll('[data-work-tab]').forEach((button) => {
+      const selected = button.dataset.workTab === state.workTab;
+      button.setAttribute('aria-selected', String(selected));
+      button.tabIndex = selected ? 0 : -1;
+      button.classList.toggle('active', selected);
+      if (focus && selected && !mobile) button.focus();
     });
     for (const name of ['problem', 'code', 'result']) {
       const pane = $(`#${name}-pane`);
-      const hidden = mobile && name !== tab;
+      const hidden = mobile ? name !== tab : name !== 'problem' && name !== state.workTab;
       pane.hidden = hidden;
       pane.setAttribute('aria-hidden', String(hidden));
+      if (name !== 'problem') pane.setAttribute('aria-labelledby', `${mobile ? 'mobile' : 'work'}-tab-${name}`);
     }
-    if (!mobile || tab === 'code') requestAnimationFrame(() => editor?.layout?.());
+    if (mobile ? tab === 'code' : state.workTab === 'code') requestAnimationFrame(() => editor?.layout?.());
   }
 
   function adjacentTab(buttons, current, direction) {
@@ -909,6 +935,21 @@ export function renderProblem(container, problem) {
     else return;
     event.preventDefault();
     showMobileTab(next.dataset.mobileTab, { focus: true });
+  });
+  $('#work-tabs').addEventListener('click', (event) => {
+    const tab = event.target.dataset.workTab;
+    if (tab) showMobileTab(tab);
+  });
+  $('#work-tabs').addEventListener('keydown', (event) => {
+    const buttons = [...container.querySelectorAll('[data-work-tab]')];
+    let next;
+    if (event.key === 'ArrowRight') next = adjacentTab(buttons, event.target, 1);
+    else if (event.key === 'ArrowLeft') next = adjacentTab(buttons, event.target, -1);
+    else if (event.key === 'Home') next = buttons[0];
+    else if (event.key === 'End') next = buttons[buttons.length - 1];
+    else return;
+    event.preventDefault();
+    showMobileTab(next.dataset.workTab, { focus: true });
   });
   const onMobileMediaChange = () => showMobileTab(state.mobileTab);
   mobileMedia.addEventListener('change', onMobileMediaChange);
@@ -996,8 +1037,33 @@ export function renderProblem(container, problem) {
     ${next ? `<a class="btn" href="#/problem/${next.id}" aria-label="下一题：${escapeHtml(next.title)}">${next.id}. ${escapeHtml(next.title)} →</a>` : '<span></span>'}
   `;
 
+  let editorFontSize = getEditorFontSize();
+  function updateFontControls() {
+    $('#font-reset').textContent = `${editorFontSize}px`;
+    $('#font-reset').setAttribute('aria-label', `当前代码字号 ${editorFontSize}px，点击恢复默认字号`);
+    $('#font-smaller').disabled = editorFontSize <= MIN_EDITOR_FONT_SIZE;
+    $('#font-larger').disabled = editorFontSize >= MAX_EDITOR_FONT_SIZE;
+  }
+  function changeFontSize(size) {
+    editorFontSize = Math.max(MIN_EDITOR_FONT_SIZE, Math.min(MAX_EDITOR_FONT_SIZE, size));
+    editor?.setFontSize(editorFontSize);
+    updateFontControls();
+    reportStorage(saveEditorFontSize(editorFontSize), '保存代码字号');
+  }
+  $('#font-smaller').onclick = () => changeFontSize(editorFontSize - 1);
+  $('#font-larger').onclick = () => changeFontSize(editorFontSize + 1);
+  $('#font-reset').onclick = () => changeFontSize(DEFAULT_EDITOR_FONT_SIZE);
+  updateFontControls();
+
   // 编辑器高度：恢复上次高度，Pointer Events 拖拽并支持键盘调整。
   const editorHost = $('#editor-host');
+  const onEditorWheel = (event) => {
+    if (!event.ctrlKey || event.deltaY === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    changeFontSize(editorFontSize + (event.deltaY < 0 ? 1 : -1));
+  };
+  editorHost.addEventListener('wheel', onEditorWheel, { capture: true, passive: false });
   const resizeEl = $('#editor-resize');
   const minEditorHeight = 200;
   const maxEditorHeight = () => Math.min(1200, Math.max(minEditorHeight, Math.round(window.innerHeight * 0.8)));
@@ -1006,8 +1072,6 @@ export function renderProblem(container, problem) {
   function setEditorHeight(height) {
     const nextHeight = Math.min(Math.max(Math.round(height), minEditorHeight), maxEditorHeight());
     editorHost.style.height = `${nextHeight}px`;
-    const fallback = editorHost.querySelector('.editor-fallback');
-    if (fallback) fallback.style.height = `${nextHeight}px`;
     resizeEl.setAttribute('aria-valuenow', String(nextHeight));
     resizeEl.setAttribute('aria-valuemax', String(maxEditorHeight()));
   }
@@ -1101,6 +1165,7 @@ export function renderProblem(container, problem) {
       return;
     }
     editor = createdEditor;
+    editor.setFontSize(editorFontSize);
     if (!mobileMedia.matches || state.mobileTab === 'code') editor.layout?.();
   });
 
@@ -1122,6 +1187,7 @@ export function renderProblem(container, problem) {
     document.removeEventListener('keydown', onKeydown);
     window.removeEventListener('pagehide', onPageHide);
     mobileMedia.removeEventListener('change', onMobileMediaChange);
+    editorHost.removeEventListener('wheel', onEditorWheel, true);
     resizeEl.removeEventListener('pointerdown', onResizePointerDown);
     resizeEl.removeEventListener('pointermove', onResizePointerMove);
     resizeEl.removeEventListener('pointerup', onResizePointerEnd);
