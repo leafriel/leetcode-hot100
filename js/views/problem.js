@@ -51,7 +51,7 @@ export function renderProblem(container, problem) {
   container.classList.add('app-wide'); // 做题页放宽布局
   const savedAssist = getAssistState(problem.id);
   const state = {
-    mode: 'core', // core | acm
+    mode: 'acm', // core | acm
     lang: getLangPref(), // javascript | python | cpp（跟随全局语言偏好，默认 Python）
     tab: 'desc', // desc | solution
     workTab: 'code', // code | result
@@ -101,8 +101,8 @@ export function renderProblem(container, problem) {
       </div>
       <div class="spacer"></div>
       <div class="seg" id="mode-seg" role="group" aria-label="代码模式">
-        <button type="button" data-mode="core" class="active">核心代码</button>
-        <button type="button" data-mode="acm">ACM 模式</button>
+        <button type="button" data-mode="core">核心代码</button>
+        <button type="button" data-mode="acm" class="active">ACM 模式</button>
       </div>
       <div class="seg" id="lang-seg" role="group" aria-label="编程语言">
         <button type="button" data-lang="python">Python</button>
